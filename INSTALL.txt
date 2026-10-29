@@ -1,0 +1,21 @@
+SynthSet 1.0.0 - BLS Audio
+==========================
+
+SynthSet is a preset-only VST3 instrument and standalone application.
+
+Install the VST3 bundle here:
+  Windows  C:\Program Files\Common Files\VST3\SynthSet.vst3
+  macOS    ~/Library/Audio/Plug-Ins/VST3/SynthSet.vst3
+           (or /Library/Audio/Plug-Ins/VST3/SynthSet.vst3)
+  Linux    ~/.vst3/SynthSet.vst3
+
+The standalone application can be launched directly from this folder.
+The macOS build is ad-hoc signed; on first launch, use right-click > Open if
+Gatekeeper asks for confirmation. It is not notarized.
+
+No sample packs, downloads, or license server are required. The 48 factory
+presets are compiled into the plugin.
+
+See README.md for the full product contract, build, verification, and release
+instructions. Lato is bundled under the SIL Open Font License; see
+Lato-OFL.txt.

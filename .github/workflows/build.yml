@@ -1,0 +1,334 @@
+name: Build SynthSet
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional release tag (e.g. v1.0.0). Leave empty for CI artifacts only."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  windows-x64:
+    name: Windows x64
+    runs-on: windows-2022
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build-windows -A x64 `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
+            -DSYNTHSET_BUILD_SCREENSHOT=OFF `
+            -DSYNTHSET_BUILD_HOST_TEST=ON
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build Release
+        shell: pwsh
+        run: |
+          cmake --build build-windows --config Release --parallel
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run DSP and preset tests
+        shell: pwsh
+        run: |
+          & "build-windows\SynthSetTests_artefacts\Release\SynthSetTests.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run VST3 host smoke test
+        shell: pwsh
+        run: |
+          & "build-windows\SynthSetHostSmokeTest_artefacts\Release\SynthSetHostSmokeTest.exe" `
+            "build-windows\SynthSet_artefacts\Release\VST3\SynthSet.vst3"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package Windows distribution
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $stage = "stage-windows"
+          Remove-Item -Recurse -Force $stage -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $stage | Out-Null
+
+          Copy-Item -Recurse -Force "build-windows\SynthSet_artefacts\Release\VST3\*.vst3" $stage
+          Copy-Item -Force "build-windows\SynthSet_artefacts\Release\Standalone\*.exe" $stage
+          if (Test-Path "README.md") { Copy-Item -Force "README.md" $stage }
+          if (Test-Path "CHANGELOG.md") { Copy-Item -Force "CHANGELOG.md" $stage }
+          if (Test-Path "INSTALL.txt") { Copy-Item -Force "INSTALL.txt" $stage }
+          if (Test-Path "Resources\Lato-OFL.txt") { Copy-Item -Force "Resources\Lato-OFL.txt" $stage }
+
+          $match = Select-String -Path "CMakeLists.txt" `
+            -Pattern 'project\(\s*SynthSet\s+VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)'
+          if (-not $match -or $match.Matches.Count -eq 0) {
+            throw "Could not read the SynthSet version from CMakeLists.txt"
+          }
+          $version = $match.Matches[0].Groups[1].Value
+
+          $zip = "SynthSet-Windows-x64-v$version.zip"
+          Compress-Archive -Path "$stage\*" -DestinationPath $zip -Force
+
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $zip" | Out-File -Encoding ascii `
+            "SynthSet-Windows-x64-v$version.sha256"
+
+          Get-Item $zip | Format-List Name, Length
+
+      - name: Upload Windows distribution
+        uses: actions/upload-artifact@v7
+        with:
+          name: SynthSet-Windows-x64
+          path: |
+            SynthSet-Windows-x64-v*.zip
+            SynthSet-Windows-x64-v*.sha256
+          if-no-files-found: error
+
+  linux-x64:
+    name: Linux x64
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config zip xvfb \
+            libasound2-dev \
+            libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
+            libxcomposite-dev libxrender-dev libxfixes-dev libxi-dev \
+            libsm-dev libice-dev libx11-xcb-dev libxcb1-dev \
+            libexpat1-dev zlib1g-dev libpng-dev libbrotli-dev libbz2-dev
+
+          if apt-cache show libfreetype-dev >/dev/null 2>&1; then
+            FREETYPE_PACKAGE=libfreetype-dev
+          else
+            FREETYPE_PACKAGE=libfreetype6-dev
+          fi
+
+          if apt-cache show libfontconfig-dev >/dev/null 2>&1; then
+            FONTCONFIG_PACKAGE=libfontconfig-dev
+          else
+            FONTCONFIG_PACKAGE=libfontconfig1-dev
+          fi
+
+          sudo apt-get install -y --no-install-recommends \
+            "$FREETYPE_PACKAGE" "$FONTCONFIG_PACKAGE"
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-linux -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSYNTHSET_BUILD_SCREENSHOT=ON \
+            -DSYNTHSET_BUILD_HOST_TEST=ON
+
+      - name: Build Release
+        run: cmake --build build-linux --parallel
+
+      - name: Run DSP and preset tests
+        run: ./build-linux/SynthSetTests_artefacts/Release/SynthSetTests
+
+      - name: Run VST3 host smoke test
+        run: |
+          xvfb-run -a \
+            ./build-linux/SynthSetHostSmokeTest_artefacts/Release/SynthSetHostSmokeTest \
+            build-linux/SynthSet_artefacts/Release/VST3/SynthSet.vst3
+
+      - name: Render UI preview
+        run: |
+          mkdir -p ui-preview
+          xvfb-run -a \
+            ./build-linux/SynthSetScreenshot_artefacts/Release/SynthSetScreenshot \
+            --preset classic.pad.106-dream \
+            --out ui-preview/synthset-106-dream.png \
+            --scale 2
+
+      - name: Package Linux distribution
+        run: |
+          set -euo pipefail
+
+          VERSION="$(sed -nE 's/^project\(SynthSet[[:space:]]+VERSION[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)"
+          if [ -z "$VERSION" ]; then
+            echo "Could not read the SynthSet version from CMakeLists.txt" >&2
+            exit 1
+          fi
+
+          STAGE="stage-linux"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+
+          cp -a build-linux/SynthSet_artefacts/Release/VST3/SynthSet.vst3 "$STAGE/"
+          cp build-linux/SynthSet_artefacts/Release/Standalone/SynthSet "$STAGE/"
+          [ -f README.md ] && cp README.md "$STAGE/"
+          [ -f CHANGELOG.md ] && cp CHANGELOG.md "$STAGE/"
+          [ -f INSTALL.txt ] && cp INSTALL.txt "$STAGE/"
+          [ -f Resources/Lato-OFL.txt ] && cp Resources/Lato-OFL.txt "$STAGE/"
+
+          find "$STAGE" -type f \( -name "*.so" -o -perm -111 \) \
+            -exec strip --strip-unneeded {} + 2>/dev/null || true
+
+          ZIP="SynthSet-Linux-x64-v${VERSION}.zip"
+          (cd "$STAGE" && zip -q -r "../${ZIP}" .)
+          sha256sum "$ZIP" > "SynthSet-Linux-x64-v${VERSION}.sha256"
+
+          ls -lh "$ZIP"
+          cat "SynthSet-Linux-x64-v${VERSION}.sha256"
+
+      - name: Upload Linux distribution
+        uses: actions/upload-artifact@v7
+        with:
+          name: SynthSet-Linux-x64
+          path: |
+            SynthSet-Linux-x64-v*.zip
+            SynthSet-Linux-x64-v*.sha256
+          if-no-files-found: error
+
+      - name: Upload UI preview
+        uses: actions/upload-artifact@v7
+        with:
+          name: SynthSet-UI-Preview
+          path: ui-preview/*.png
+          if-no-files-found: error
+
+  macos-universal:
+    name: macOS Universal
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Install Ninja
+        run: brew install ninja
+
+      - name: Configure Universal Binary
+        run: |
+          cmake -S . -B build-macos -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="11.0" \
+            -DSYNTHSET_BUILD_SCREENSHOT=OFF \
+            -DSYNTHSET_BUILD_HOST_TEST=ON
+
+      - name: Build Release
+        run: cmake --build build-macos --parallel
+
+      - name: Ad-hoc sign bundles
+        run: |
+          for bundle in build-macos/SynthSet_artefacts/Release/VST3/SynthSet.vst3 \
+                        build-macos/SynthSet_artefacts/Release/Standalone/SynthSet.app; do
+            if [ -e "$bundle" ]; then
+              codesign --force --deep --sign - "$bundle"
+            fi
+          done
+
+      - name: Run DSP and preset tests
+        run: ./build-macos/SynthSetTests_artefacts/Release/SynthSetTests
+
+      - name: Run VST3 host smoke test
+        run: |
+          ./build-macos/SynthSetHostSmokeTest_artefacts/Release/SynthSetHostSmokeTest \
+            build-macos/SynthSet_artefacts/Release/VST3/SynthSet.vst3
+
+      - name: Package macOS distribution
+        run: |
+          set -euo pipefail
+
+          VERSION="$(sed -nE 's/^project\(SynthSet[[:space:]]+VERSION[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)"
+          if [ -z "$VERSION" ]; then
+            echo "Could not read the SynthSet version from CMakeLists.txt" >&2
+            exit 1
+          fi
+
+          STAGE="stage-macos"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+
+          cp -R build-macos/SynthSet_artefacts/Release/VST3/SynthSet.vst3 "$STAGE/"
+          cp -R build-macos/SynthSet_artefacts/Release/Standalone/SynthSet.app "$STAGE/"
+          [ -f README.md ] && cp README.md "$STAGE/"
+          [ -f CHANGELOG.md ] && cp CHANGELOG.md "$STAGE/"
+          [ -f INSTALL.txt ] && cp INSTALL.txt "$STAGE/"
+          [ -f Resources/Lato-OFL.txt ] && cp Resources/Lato-OFL.txt "$STAGE/"
+
+          ZIP="SynthSet-macOS-Universal-v${VERSION}.zip"
+          ditto -c -k --sequesterRsrc "$STAGE" "$ZIP"
+          shasum -a 256 "$ZIP" > "SynthSet-macOS-Universal-v${VERSION}.sha256"
+
+          ls -lh "$ZIP"
+          cat "SynthSet-macOS-Universal-v${VERSION}.sha256"
+
+      - name: Upload macOS distribution
+        uses: actions/upload-artifact@v7
+        with:
+          name: SynthSet-macOS-Universal
+          path: |
+            SynthSet-macOS-Universal-v*.zip
+            SynthSet-macOS-Universal-v*.sha256
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [ windows-x64, linux-x64, macos-universal ]
+    if: ${{ github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out source for version check
+        uses: actions/checkout@v6
+
+      - name: Verify tag matches CMake version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(sed -nE 's/^project\(SynthSet[[:space:]]+VERSION[[:space:]]+([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)"
+          TAG="${{ inputs.release_tag || github.ref_name }}"
+          case "$TAG" in
+            "v${VERSION}"|"v${VERSION}"-*) ;;
+            *)
+              echo "Tag '$TAG' does not match CMake version 'v${VERSION}'" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Download release packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: SynthSet-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: SynthSet ${{ inputs.release_tag || github.ref_name }}
+          files: |
+            release-assets/*.zip
+            release-assets/*.sha256
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          generate_release_notes: true
+          prerelease: ${{ contains(inputs.release_tag || github.ref_name, '-') }}
