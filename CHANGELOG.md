@@ -3,6 +3,16 @@
 All notable changes to SynthSet are documented here. Versions follow the
 `project(SynthSet VERSION …)` value in `CMakeLists.txt`.
 
+## 1.0.2 — 2026-10-29
+
+### Fixed
+
+- Windows and macOS compile failures caused by narrowing integer-to-float
+  conversions in the hero tag/recipe chip layout.
+- MSVC object-size headroom and source encoding via `/bigobj` and `/utf-8`.
+- CI release tags now correspond to a build that passes on all three
+  distribution platforms.
+
 ## 1.0.1 — 2026-10-29
 
 ### Changed

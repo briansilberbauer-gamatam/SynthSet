@@ -1,4 +1,4 @@
-SynthSet 1.0.1 - BLS Audio
+SynthSet 1.0.2 - BLS Audio
 ==========================
 
 SynthSet is a preset-only VST3 instrument and standalone application.

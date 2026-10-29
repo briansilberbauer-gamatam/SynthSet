@@ -225,7 +225,7 @@ public:
             const auto label = juce::String (tag).toUpperCase();
             const float width = juce::GlyphArrangement::getStringWidth (
                                     font (9.2f, FontWeight::semibold, 0.11f), label) + 17.0f;
-            drawChip (g, { chipX, getHeight() - 56, width, 23.0f }, label, accent, false);
+            drawChip (g, { chipX, static_cast<float> (getHeight() - 56), width, 23.0f }, label, accent, false);
             chipX += width + 8.0f;
         }
 
@@ -241,7 +241,7 @@ public:
             const float width = juce::GlyphArrangement::getStringWidth (
                                     font (9.0f, FontWeight::semibold, 0.09f), text) + 18.0f;
             recipeX -= width;
-            drawChip (g, { recipeX, getHeight() - 56, width, 23.0f }, text, accent, true);
+            drawChip (g, { recipeX, static_cast<float> (getHeight() - 56), width, 23.0f }, text, accent, true);
             recipeX -= 8.0f;
         }
 

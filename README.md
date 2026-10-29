@@ -188,9 +188,9 @@ Every job runs the DSP/preset tests and the VST3 host smoke test. Versioned
 archives are named from `project(SynthSet VERSION …)` in `CMakeLists.txt`:
 
 ```text
-SynthSet-Windows-x64-v1.0.1.zip
-SynthSet-Linux-x64-v1.0.1.zip
-SynthSet-macOS-Universal-v1.0.1.zip
+SynthSet-Windows-x64-v1.0.2.zip
+SynthSet-Linux-x64-v1.0.2.zip
+SynthSet-macOS-Universal-v1.0.2.zip
 ```
 
 Each has a matching `.sha256`. Pushing a `v*` tag, or dispatching the workflow
@@ -218,4 +218,4 @@ License. See `Resources/Lato-OFL.txt`. SynthSet is an independent instrument;
 its "inspired by" heritage notes are internal engineering guidance and do not
 imply affiliation with any other manufacturer.
 
-Version **1.0.1** · BLS Audio
+Version **1.0.2** · BLS Audio
