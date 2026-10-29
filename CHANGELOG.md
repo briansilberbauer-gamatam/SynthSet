@@ -3,6 +3,15 @@
 All notable changes to SynthSet are documented here. Versions follow the
 `project(SynthSet VERSION …)` value in `CMakeLists.txt`.
 
+## 1.0.3 — 2026-10-29
+
+### Fixed
+
+- Windows VST3 host smoke test state-restore race: the test now waits for the
+  host's asynchronous program notification instead of a fixed 80 ms pump.
+- Host test failures now emit GitHub Actions error annotations with the exact
+  failed assertion.
+
 ## 1.0.2 — 2026-10-29
 
 ### Fixed

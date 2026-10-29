@@ -1,7 +1,7 @@
 #pragma once
 
 #ifndef SYNTHSET_VERSION
- #define SYNTHSET_VERSION "1.0.2"
+ #define SYNTHSET_VERSION "1.0.3"
 #endif
 
 namespace synthset

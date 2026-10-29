@@ -14,7 +14,10 @@ void check (bool condition, const char* message)
     std::cout << (condition ? "  PASS  " : "  FAIL  ") << message << '\n';
 
     if (! condition)
+    {
+        std::cout << "::error::" << message << '\n';
         ++failures;
+    }
 }
 
 bool allFinite (const juce::AudioBuffer<float>& buffer)
@@ -176,7 +179,14 @@ int main (int argc, char** argv)
         restoredInstance->prepareToPlay (48000.0, 512);
         restoredInstance->setStateInformation (state.getData(), static_cast<int> (state.getSize()));
         renderBlocks (*restoredInstance, buffer, 100);
-        juce::MessageManager::getInstance()->runDispatchLoopUntil (80);
+
+        // Hosts surface program changes asynchronously. Wait for the
+        // message-thread program notification instead of relying on a single
+        // 80 ms pump, which is racy on slower Windows CI runners.
+        for (int attempt = 0; attempt < 80
+             && restoredInstance->getCurrentProgram() != savedProgram; ++attempt)
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (20);
+
         std::cout << "  INFO  restored program: " << restoredInstance->getCurrentProgram() << '\n';
         check (restoredInstance->getCurrentProgram() == savedProgram,
                "state restores the saved preset ID in a fresh instance");
