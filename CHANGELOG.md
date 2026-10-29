@@ -10,6 +10,8 @@ All notable changes to SynthSet are documented here. Versions follow the
 - Windows and macOS compile failures caused by narrowing integer-to-float
   conversions in the hero tag/recipe chip layout.
 - MSVC object-size headroom and source encoding via `/bigobj` and `/utf-8`.
+- Linux CI now runs the VST3 host smoke test headlessly without depending on
+  `xvfb-run`/`xauth`; the screenshot job still uses Xvfb.
 - CI release tags now correspond to a build that passes on all three
   distribution platforms.
 

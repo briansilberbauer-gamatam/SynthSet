@@ -111,7 +111,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build pkg-config zip xvfb \
+            build-essential cmake ninja-build pkg-config zip xvfb xauth \
             libasound2-dev \
             libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
             libxcomposite-dev libxrender-dev libxfixes-dev libxi-dev \
@@ -148,8 +148,7 @@ jobs:
 
       - name: Run VST3 host smoke test
         run: |
-          xvfb-run -a \
-            ./build-linux/SynthSetHostSmokeTest_artefacts/Release/SynthSetHostSmokeTest \
+          ./build-linux/SynthSetHostSmokeTest_artefacts/Release/SynthSetHostSmokeTest \
             build-linux/SynthSet_artefacts/Release/VST3/SynthSet.vst3
 
       - name: Render UI preview
