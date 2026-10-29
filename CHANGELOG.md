@@ -3,6 +3,15 @@
 All notable changes to SynthSet are documented here. Versions follow the
 `project(SynthSet VERSION …)` value in `CMakeLists.txt`.
 
+## 1.0.1 — 2026-10-29
+
+### Changed
+
+- Version metadata aligned across CMake, the plugin/standalone binary, the UI
+  footer, installer notes, and documentation.
+- Distribution refresh with a rebuilt Linux x64 package and checksum, and
+  release tags ready for the Windows x64 and macOS Universal CI jobs.
+
 ## 1.0.0 — 2026-10-29
 
 ### Added
